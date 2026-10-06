@@ -165,7 +165,7 @@ cmd_isolate_all() {
             local domain
             domain=$(basename "$f" .conf)
             [[ "$domain" =~ ^(default|0\..*|phpmyadmin|phpfpm_status|waf2.*|enable-php.*)$ ]] && continue
-            cmd_isolate "$domain"
+            cmd_isolate "$domain" || true
         done
     fi
 }
@@ -173,6 +173,28 @@ cmd_isolate_all() {
 cmd_cache() {
     local action="${1:-status}"
     local domain="${2:-}"
+
+    if [ "$action" = "enable-all" ] || [ "$action" = "purge-all" ]; then
+        local vhost_dir
+        vhost_dir=$(get_nginx_vhost_dir)
+        if [ -d "$vhost_dir" ]; then
+            for f in "$vhost_dir"/*.conf; do
+                [ -e "$f" ] || continue
+                local d
+                d=$(basename "$f" .conf)
+                [[ "$d" =~ ^(default|0\..*|phpmyadmin|phpfpm_status|waf2.*|enable-php.*)$ ]] && continue
+                if [ "$action" = "enable-all" ]; then
+                    enable_site_cache "$d" || true
+                elif [ "$action" = "purge-all" ]; then
+                    purge_site_cache "$d" || true
+                fi
+            done
+            verify_and_reload_nginx || true
+        fi
+        log_success "Executed cache $action for all websites."
+        return 0
+    fi
+
     if [ -z "$domain" ]; then
         log_error "Domain name required. Example: rs-isolate cache status example.com"
         exit 1
