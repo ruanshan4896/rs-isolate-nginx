@@ -12,8 +12,11 @@ fi
 INSTALL_DIR="/opt/rs-isolate-nginx"
 echo -e "\033[0;34m[INFO] Installing rs-isolate-nginx to ${INSTALL_DIR}...\033[0m"
 
-mkdir -p "$INSTALL_DIR"
-cp -r bin lib systemd "$INSTALL_DIR/"
+CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ "$CURRENT_DIR" != "$INSTALL_DIR" ]; then
+    mkdir -p "$INSTALL_DIR"
+    cp -r bin lib systemd "$INSTALL_DIR/"
+fi
 chmod +x "${INSTALL_DIR}/bin/"*
 
 ln -sf "${INSTALL_DIR}/bin/rs-isolate" /usr/local/bin/rs-isolate
