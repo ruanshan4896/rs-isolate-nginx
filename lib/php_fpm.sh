@@ -38,6 +38,18 @@ create_php_fpm_pool() {
     ensure_php_fpm_include
 
     log_info "Configuring dedicated PHP-FPM pool for $domain..."
+    local cache_dir="/dev/shm/nginx-cache/${domain_clean}"
+
+    # Also update .user.ini if present to allow cache directory
+    local user_ini="${docroot}/.user.ini"
+    if [ -f "$user_ini" ]; then
+        if ! grep -Fq "${cache_dir}" "$user_ini" 2>/dev/null; then
+            chattr -i "$user_ini" 2>/dev/null || true
+            sed_i "s|^\(open_basedir=.*\)$|\1:${cache_dir}/|" "$user_ini" 2>/dev/null || true
+            chattr +i "$user_ini" 2>/dev/null || true
+        fi
+    fi
+
     cat << EOF > "$pool_file"
 [${domain}]
 user = ${user}
@@ -52,7 +64,7 @@ pm.max_children = 20
 pm.process_idle_timeout = 60s
 pm.max_requests = 1000
 
-php_admin_value[open_basedir] = ${docroot}/:/tmp/:/proc/
+php_admin_value[open_basedir] = ${docroot}/:/tmp/:/proc/:${cache_dir}/
 php_admin_value[upload_tmp_dir] = /tmp
 php_admin_value[session.save_path] = /tmp
 php_admin_value[max_execution_time] = 300
