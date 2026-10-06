@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+# bin/rs-isolate-sentinel - Zero-touch auto-isolation daemon for aaPanel Nginx
+
+set -eu
+set -o pipefail 2>/dev/null || true
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ISOLATE_CMD="${SCRIPT_DIR}/bin/rs-isolate"
+NGINX_VHOST_DIR="${AAPANEL_NGINX_VHOST_DIR:-/www/server/panel/vhost/nginx}"
+STATE_DIR="${SENTINEL_STATE_DIR:-/var/run/rs-isolate-sentinel}"
+DEBOUNCE_SECONDS="${SENTINEL_DEBOUNCE:-15}"
+
+mkdir -p "$STATE_DIR" 2>/dev/null || true
+
+log_sentinel() {
+    local msg="[$(date '+%Y-%m-%d %H:%M:%S')] [Sentinel] $*"
+    echo "$msg"
+}
+
+run_monitor() {
+    log_sentinel "Starting Sentinel Auto-Isolation Monitor..."
+    while true; do
+        if [ -d "$NGINX_VHOST_DIR" ]; then
+            for f in "$NGINX_VHOST_DIR"/*.conf; do
+                [ -e "$f" ] || continue
+                local domain
+                domain=$(basename "$f" .conf)
+                [[ "$domain" =~ ^(default|0\.default|phpmyadmin|enable-php.*)$ ]] && continue
+
+                local user
+                user=$("${SCRIPT_DIR}/bin/rs-isolate" status "$domain" 2>/dev/null | grep "Isolated User" | awk '{print $3}' || echo "")
+                [ -n "$user" ] || continue
+
+                local domain_clean="${user#iso_}"
+                local snippet="${NGINX_VHOST_DIR}/enable-php-84-${domain_clean}.conf"
+                local docroot="/www/wwwroot/${domain}"
+
+                # Check if vhost is already isolated
+                if [ -f "$snippet" ] && grep -q "enable-php-84-${domain_clean}" "$f" 2>/dev/null; then
+                    # Drift check: check if permissions were reset to www
+                    if [ -d "$docroot" ]; then
+                        local owner=""
+                        if stat -c %U "$docroot" >/dev/null 2>&1; then
+                            owner=$(stat -c %U "$docroot")
+                        else
+                            owner=$(stat -f %Su "$docroot" 2>/dev/null || echo "")
+                        fi
+                        if [ "$owner" = "www" ]; then
+                            log_sentinel "Permission drift detected on $domain! Restoring isolated ownership..."
+                            "$ISOLATE_CMD" isolate "$domain" >/dev/null 2>&1 || true
+                        fi
+                    fi
+                else
+                    # New site detected
+                    local now
+                    now=$(date +%s)
+                    local mtime
+                    if stat -c %Y "$f" >/dev/null 2>&1; then
+                        mtime=$(stat -c %Y "$f")
+                    else
+                        mtime=$(stat -f %m "$f" 2>/dev/null || echo "$now")
+                    fi
+                    local elapsed=$((now - mtime))
+                    if [ "$elapsed" -ge "$DEBOUNCE_SECONDS" ] && [ -d "$docroot" ]; then
+                        log_sentinel "aaPanel settled for $domain. Executing zero-touch isolation..."
+                        if "$ISOLATE_CMD" isolate "$domain"; then
+                            log_sentinel "Successfully isolated $domain!"
+                        fi
+                    fi
+                fi
+            done
+        fi
+        sleep 5
+    done
+}
+
+# If executed directly with 'run-once' (useful for tests)
+if [ "${1:-}" = "run-once" ]; then
+    DEBOUNCE_SECONDS=0
+    if [ -d "$NGINX_VHOST_DIR" ]; then
+        for f in "$NGINX_VHOST_DIR"/*.conf; do
+            [ -e "$f" ] || continue
+            domain=$(basename "$f" .conf)
+            [[ "$domain" =~ ^(default|0\.default|phpmyadmin|enable-php.*)$ ]] && continue
+            "$ISOLATE_CMD" isolate "$domain" >/dev/null 2>&1 || true
+        done
+    fi
+    exit 0
+fi
+
+run_monitor

@@ -63,7 +63,17 @@ cmd_isolate() {
         exit 1
     fi
 
+    local vhost_dir
+    vhost_dir=$(get_nginx_vhost_dir)
+    local vhost_file="${vhost_dir}/${domain}.conf"
     local docroot="${custom_docroot:-/www/wwwroot/${domain}}"
+    if [ -z "$custom_docroot" ] && [ -f "$vhost_file" ]; then
+        local detected
+        detected=$(grep -E "^\s*root\s+" "$vhost_file" | awk "{print \$2}" | tr -d ";" || true)
+        if [ -n "$detected" ] && [ -d "$detected" ]; then
+            docroot="$detected"
+        fi
+    fi
 
     log_info "Starting isolation for $domain..."
     create_isolated_user "$domain" "$docroot"
@@ -83,7 +93,17 @@ cmd_restore() {
         exit 1
     fi
 
+    local vhost_dir
+    vhost_dir=$(get_nginx_vhost_dir)
+    local vhost_file="${vhost_dir}/${domain}.conf"
     local docroot="${custom_docroot:-/www/wwwroot/${domain}}"
+    if [ -z "$custom_docroot" ] && [ -f "$vhost_file" ]; then
+        local detected
+        detected=$(grep -E "^\s*root\s+" "$vhost_file" | awk "{print \$2}" | tr -d ";" || true)
+        if [ -n "$detected" ] && [ -d "$detected" ]; then
+            docroot="$detected"
+        fi
+    fi
     log_info "Restoring $domain to default aaPanel setup..."
     restore_nginx_vhost "$domain"
     remove_php_fpm_pool "$domain"

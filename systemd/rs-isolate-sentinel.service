@@ -1,0 +1,14 @@
+[Unit]
+Description=rs-isolate-nginx Zero-Touch Sentinel Daemon
+After=network.target nginx.service php-fpm-84.service
+
+[Service]
+Type=simple
+ExecStart=/opt/rs-isolate-nginx/bin/rs-isolate-sentinel
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
