@@ -43,6 +43,23 @@ sudo bash install.sh
 ---
 
 ## CLI Usage
+### FastCGI RAM Cache (Native Till Krüss Nginx Cache Plugin support)
+Each website automatically gets a **dedicated FastCGI Cache zone in RAM (`/dev/shm`)** with POSIX ACL permissions for multi-tenant isolation:
+
+```bash
+# View Cache Zone details to configure in WordPress Admin (Tools -> Nginx)
+rs-isolate cache status example.com
+
+# Purge / Flush RAM cache for a domain
+rs-isolate cache purge example.com
+
+# Disable FastCGI cache for a domain
+rs-isolate cache disable example.com
+
+# Re-enable FastCGI cache
+rs-isolate cache enable example.com
+```
+
 
 ```bash
 # List all websites and isolation status

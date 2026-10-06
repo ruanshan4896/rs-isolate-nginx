@@ -43,6 +43,23 @@ sudo bash install.sh
 ---
 
 ## Các Lệnh Quản Trị (CLI)
+### Quản lý FastCGI RAM Cache (Tương thích Plugin Nginx Cache - Till Krüss)
+Mỗi website khi được cách ly sẽ được **tự động kích hoạt bộ nhớ đệm FastCGI Cache trên RAM (`/dev/shm`)**, phân lập riêng biệt cho từng tenant kèm phân quyền POSIX ACL:
+
+```bash
+# Xem thông số Cache Zone để dán vào WordPress Admin (Tools -> Nginx)
+rs-isolate cache status example.com
+
+# Xóa trắng (Purge / Flush) cache của một website
+rs-isolate cache purge example.com
+
+# Tắt cache cho website này (nếu site động / không cần cache)
+rs-isolate cache disable example.com
+
+# Bật lại cache
+rs-isolate cache enable example.com
+```
+
 
 ```bash
 # Xem danh sách website và trạng thái cách ly

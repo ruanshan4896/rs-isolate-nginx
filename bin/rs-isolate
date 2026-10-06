@@ -17,6 +17,7 @@ fi
 source "${SCRIPT_DIR}/lib/common.sh"
 source "${SCRIPT_DIR}/lib/os_user.sh"
 source "${SCRIPT_DIR}/lib/php_fpm.sh"
+source "${SCRIPT_DIR}/lib/fastcgi_cache.sh"
 source "${SCRIPT_DIR}/lib/nginx_vhost.sh"
 
 show_help() {
@@ -32,6 +33,7 @@ Commands:
   isolate-all                   Isolate all websites currently on aaPanel
   restore <domain>              Revert website to standard aaPanel configuration
   status <domain>               Show detailed isolation audit for a domain
+  cache <action> <domain>       Manage FastCGI Cache (enable|disable|purge|status)
   sentinel <action>             Manage Zero-Touch daemon (start|stop|restart|status|logs)
   --help, -h                    Show this help message
 HELP
@@ -168,6 +170,36 @@ cmd_isolate_all() {
     fi
 }
 
+cmd_cache() {
+    local action="${1:-status}"
+    local domain="${2:-}"
+    if [ -z "$domain" ]; then
+        log_error "Domain name required. Example: rs-isolate cache status example.com"
+        exit 1
+    fi
+
+    case "$action" in
+        enable)
+            enable_site_cache "$domain"
+            verify_and_reload_nginx || true
+            ;;
+        disable)
+            disable_site_cache "$domain"
+            verify_and_reload_nginx || true
+            ;;
+        purge|clear|flush)
+            purge_site_cache "$domain"
+            ;;
+        status)
+            status_site_cache "$domain"
+            ;;
+        *)
+            log_error "Unknown cache action: $action. Use: enable | disable | purge | status"
+            exit 1
+            ;;
+    esac
+}
+
 cmd_sentinel() {
     local action="${1:-status}"
     case "$action" in
@@ -186,6 +218,7 @@ case "${1:-}" in
     isolate-all) cmd_isolate_all ;;
     restore) shift; cmd_restore "$@" ;;
     status) shift; cmd_status "$@" ;;
+    cache) shift; cmd_cache "$@" ;;
     sentinel) shift; cmd_sentinel "$@" ;;
     --help|-h|"") show_help ;;
     *) log_error "Unknown command: $1"; show_help; exit 1 ;;
