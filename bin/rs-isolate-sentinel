@@ -34,7 +34,7 @@ run_monitor() {
                 [ -e "$f" ] || continue
                 local domain
                 domain=$(basename "$f" .conf)
-                [[ "$domain" =~ ^(default|0\.default|phpmyadmin|enable-php.*)$ ]] && continue
+                [[ "$domain" =~ ^(default|0\..*|phpmyadmin|phpfpm_status|waf2.*|enable-php.*)$ ]] && continue
 
                 local user
                 user=$("${SCRIPT_DIR}/bin/rs-isolate" status "$domain" 2>/dev/null | grep "Isolated User" | awk '{print $3}' || echo "")
@@ -92,7 +92,7 @@ if [ "${1:-}" = "run-once" ]; then
         for f in "$NGINX_VHOST_DIR"/*.conf; do
             [ -e "$f" ] || continue
             domain=$(basename "$f" .conf)
-            [[ "$domain" =~ ^(default|0\.default|phpmyadmin|enable-php.*)$ ]] && continue
+            [[ "$domain" =~ ^(default|0\..*|phpmyadmin|phpfpm_status|waf2.*|enable-php.*)$ ]] && continue
             "$ISOLATE_CMD" isolate "$domain" >/dev/null 2>&1 || true
         done
     fi

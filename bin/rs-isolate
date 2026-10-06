@@ -50,7 +50,7 @@ cmd_list() {
             [ -e "$f" ] || continue
             local domain
             domain=$(basename "$f" .conf)
-            [[ "$domain" =~ ^(default|0\.default|phpmyadmin|enable-php.*)$ ]] && continue
+            [[ "$domain" =~ ^(default|0\..*|phpmyadmin|phpfpm_status|waf2.*|enable-php.*)$ ]] && continue
 
             local user
             user=$(sanitize_domain_to_user "$domain")
@@ -164,7 +164,7 @@ cmd_isolate_all() {
             [ -e "$f" ] || continue
             local domain
             domain=$(basename "$f" .conf)
-            [[ "$domain" =~ ^(default|0\.default|phpmyadmin|enable-php.*)$ ]] && continue
+            [[ "$domain" =~ ^(default|0\..*|phpmyadmin|phpfpm_status|waf2.*|enable-php.*)$ ]] && continue
             cmd_isolate "$domain"
         done
     fi
