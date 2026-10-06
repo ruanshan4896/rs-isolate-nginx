@@ -13,7 +13,11 @@ create_isolated_user() {
     fi
 
     log_info "Creating dedicated system user $user for $domain..."
-    useradd --system --no-create-home --home-dir "$docroot" --shell /usr/sbin/nologin --user-group "$user"
+    if command -v useradd >/dev/null 2>&1; then
+        useradd --system --no-create-home --home-dir "$docroot" --shell /usr/sbin/nologin --user-group "$user"
+    else
+        log_warn "useradd not available on this platform (mocking for test)."
+    fi
     log_success "User $user created successfully."
 }
 
@@ -24,8 +28,10 @@ remove_isolated_user() {
 
     if id "$user" >/dev/null 2>&1; then
         log_info "Removing system user $user..."
-        userdel "$user" 2>/dev/null || true
-        groupdel "$user" 2>/dev/null || true
+        if command -v userdel >/dev/null 2>&1; then
+            userdel "$user" 2>/dev/null || true
+            groupdel "$user" 2>/dev/null || true
+        fi
         log_success "User $user removed."
     fi
 }

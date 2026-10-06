@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+# bin/rs-isolate - Command-line interface for aaPanel Nginx & PHP 8.4 website isolation
+
+set -eu
+set -o pipefail 2>/dev/null || true
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${SCRIPT_DIR}/lib/common.sh"
+source "${SCRIPT_DIR}/lib/os_user.sh"
+source "${SCRIPT_DIR}/lib/php_fpm.sh"
+source "${SCRIPT_DIR}/lib/nginx_vhost.sh"
+
+show_help() {
+    cat << HELP
+rs-isolate-nginx - Multi-Tenant Website Isolation Engine for aaPanel Nginx & PHP 8.4
+
+Usage:
+  rs-isolate <command> [options]
+
+Commands:
+  list                          List all websites and their isolation status
+  isolate <domain>              Isolate a specific website
+  isolate-all                   Isolate all websites currently on aaPanel
+  restore <domain>              Revert website to standard aaPanel configuration
+  status <domain>               Show detailed isolation audit for a domain
+  sentinel <action>             Manage Zero-Touch daemon (start|stop|restart|status|logs)
+  --help, -h                    Show this help message
+HELP
+}
+
+cmd_list() {
+    local vhost_dir
+    vhost_dir=$(get_nginx_vhost_dir)
+    printf "%-30s %-20s %-15s\n" "DOMAIN" "USER" "STATUS"
+    printf "%-30s %-20s %-15s\n" "------------------------------" "--------------------" "---------------"
+
+    if [ -d "$vhost_dir" ]; then
+        for f in "$vhost_dir"/*.conf; do
+            [ -e "$f" ] || continue
+            local domain
+            domain=$(basename "$f" .conf)
+            [[ "$domain" =~ ^(default|0\.default|phpmyadmin|enable-php.*)$ ]] && continue
+
+            local user
+            user=$(sanitize_domain_to_user "$domain")
+            local domain_clean="${user#iso_}"
+            local snippet="${vhost_dir}/enable-php-84-${domain_clean}.conf"
+
+            if [ -f "$snippet" ] && grep -q "enable-php-84-${domain_clean}" "$f"; then
+                printf "%-30s %-20s %-15s\n" "$domain" "$user" "ISOLATED"
+            else
+                printf "%-30s %-20s %-15s\n" "$domain" "www" "DEFAULT"
+            fi
+        done
+    fi
+}
+
+cmd_isolate() {
+    local domain="${1:-}"
+    local custom_docroot="${2:-}"
+    if [ -z "$domain" ]; then
+        log_error "Domain name required. Example: rs-isolate isolate example.com"
+        exit 1
+    fi
+
+    local docroot="${custom_docroot:-/www/wwwroot/${domain}}"
+
+    log_info "Starting isolation for $domain..."
+    create_isolated_user "$domain" "$docroot"
+    apply_site_permissions "$domain" "$docroot"
+    create_php_fpm_pool "$domain" "$docroot"
+    isolate_nginx_vhost "$domain"
+
+    verify_and_reload_php_fpm || true
+    verify_and_reload_nginx || true
+    log_success "Website $domain successfully ISOLATED!"
+}
+
+cmd_restore() {
+    local domain="${1:-}"
+    if [ -z "$domain" ]; then
+        log_error "Domain name required. Example: rs-isolate restore example.com"
+        exit 1
+    fi
+
+    local docroot="${custom_docroot:-/www/wwwroot/${domain}}"
+    log_info "Restoring $domain to default aaPanel setup..."
+    restore_nginx_vhost "$domain"
+    remove_php_fpm_pool "$domain"
+    restore_site_permissions "$domain" "$docroot"
+    remove_isolated_user "$domain"
+
+    verify_and_reload_php_fpm || true
+    verify_and_reload_nginx || true
+    log_success "Website $domain restored to default."
+}
+
+cmd_status() {
+    local domain="${1:-}"
+    if [ -z "$domain" ]; then
+        log_error "Domain name required."
+        exit 1
+    fi
+    local user
+    user=$(sanitize_domain_to_user "$domain")
+    local domain_clean="${user#iso_}"
+    local vhost_dir
+    vhost_dir=$(get_nginx_vhost_dir)
+    local snippet="${vhost_dir}/enable-php-84-${domain_clean}.conf"
+    local base_dir
+    base_dir=$(get_php_fpm_base_dir)
+    local pool_file="${base_dir}/php-fpm.d/${domain_clean}.conf"
+
+    echo "Status Audit for: $domain"
+    echo "-----------------------------------"
+    echo "Isolated User: $user"
+    echo -n "PHP-FPM Pool:  "
+    [ -f "$pool_file" ] && echo "CONFIGURED ($pool_file)" || echo "MISSING"
+    echo -n "Nginx Routing: "
+    [ -f "$snippet" ] && echo "ISOLATED ($snippet)" || echo "DEFAULT"
+}
+
+cmd_isolate_all() {
+    local vhost_dir
+    vhost_dir=$(get_nginx_vhost_dir)
+    if [ -d "$vhost_dir" ]; then
+        for f in "$vhost_dir"/*.conf; do
+            [ -e "$f" ] || continue
+            local domain
+            domain=$(basename "$f" .conf)
+            [[ "$domain" =~ ^(default|0\.default|phpmyadmin|enable-php.*)$ ]] && continue
+            cmd_isolate "$domain"
+        done
+    fi
+}
+
+cmd_sentinel() {
+    local action="${1:-status}"
+    case "$action" in
+        start)   systemctl start rs-isolate-sentinel ;;
+        stop)    systemctl stop rs-isolate-sentinel ;;
+        restart) systemctl restart rs-isolate-sentinel ;;
+        status)  systemctl status rs-isolate-sentinel --no-pager ;;
+        logs)    journalctl -u rs-isolate-sentinel -n 50 -f ;;
+        *) log_error "Unknown sentinel action: $action" ;;
+    esac
+}
+
+case "${1:-}" in
+    list) cmd_list ;;
+    isolate) shift; cmd_isolate "$@" ;;
+    isolate-all) cmd_isolate_all ;;
+    restore) shift; cmd_restore "$@" ;;
+    status) shift; cmd_status "$@" ;;
+    sentinel) shift; cmd_sentinel "$@" ;;
+    --help|-h|"") show_help ;;
+    *) log_error "Unknown command: $1"; show_help; exit 1 ;;
+esac
