@@ -4,7 +4,16 @@
 set -eu
 set -o pipefail 2>/dev/null || true
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_DIR="$( cd -P "$( dirname "$SOURCE" )/.." >/dev/null 2>&1 && pwd )"
+if [ ! -d "${SCRIPT_DIR}/lib" ] && [ -d "/opt/rs-isolate-nginx/lib" ]; then
+    SCRIPT_DIR="/opt/rs-isolate-nginx"
+fi
 ISOLATE_CMD="${SCRIPT_DIR}/bin/rs-isolate"
 NGINX_VHOST_DIR="${AAPANEL_NGINX_VHOST_DIR:-/www/server/panel/vhost/nginx}"
 STATE_DIR="${SENTINEL_STATE_DIR:-/var/run/rs-isolate-sentinel}"
@@ -32,7 +41,9 @@ run_monitor() {
                 [ -n "$user" ] || continue
 
                 local domain_clean="${user#iso_}"
-                local snippet="${NGINX_VHOST_DIR}/enable-php-84-${domain_clean}.conf"
+                local conf_dir="/www/server/nginx/conf"
+                [ -d "$conf_dir" ] || conf_dir="$NGINX_VHOST_DIR"
+                local snippet="${conf_dir}/enable-php-84-${domain_clean}.conf"
                 local docroot="/www/wwwroot/${domain}"
 
                 # Check if vhost is already isolated

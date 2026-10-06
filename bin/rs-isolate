@@ -4,7 +4,16 @@
 set -eu
 set -o pipefail 2>/dev/null || true
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do
+  DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_DIR="$( cd -P "$( dirname "$SOURCE" )/.." >/dev/null 2>&1 && pwd )"
+if [ ! -d "${SCRIPT_DIR}/lib" ] && [ -d "/opt/rs-isolate-nginx/lib" ]; then
+    SCRIPT_DIR="/opt/rs-isolate-nginx"
+fi
 source "${SCRIPT_DIR}/lib/common.sh"
 source "${SCRIPT_DIR}/lib/os_user.sh"
 source "${SCRIPT_DIR}/lib/php_fpm.sh"
@@ -44,7 +53,9 @@ cmd_list() {
             local user
             user=$(sanitize_domain_to_user "$domain")
             local domain_clean="${user#iso_}"
-            local snippet="${vhost_dir}/enable-php-84-${domain_clean}.conf"
+            local conf_dir
+            conf_dir=$(get_nginx_conf_dir)
+            local snippet="${conf_dir}/enable-php-84-${domain_clean}.conf"
 
             if [ -f "$snippet" ] && grep -q "enable-php-84-${domain_clean}" "$f"; then
                 printf "%-30s %-20s %-15s\n" "$domain" "$user" "ISOLATED"
@@ -127,7 +138,9 @@ cmd_status() {
     local domain_clean="${user#iso_}"
     local vhost_dir
     vhost_dir=$(get_nginx_vhost_dir)
-    local snippet="${vhost_dir}/enable-php-84-${domain_clean}.conf"
+    local conf_dir
+    conf_dir=$(get_nginx_conf_dir)
+    local snippet="${conf_dir}/enable-php-84-${domain_clean}.conf"
     local base_dir
     base_dir=$(get_php_fpm_base_dir)
     local pool_file="${base_dir}/php-fpm.d/${domain_clean}.conf"

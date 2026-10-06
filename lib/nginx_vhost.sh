@@ -34,7 +34,12 @@ isolate_nginx_vhost() {
         return 1
     fi
 
-    # Create dedicated enable-php snippet with native uploads security
+    # Clean up any misplaced snippet in vhost_dir that would break nginx.conf wildcard inclusion
+    if [ "$vhost_dir" != "$conf_dir" ] && [ -f "${vhost_dir}/enable-php-84-${domain_clean}.conf" ]; then
+        rm -f "${vhost_dir}/enable-php-84-${domain_clean}.conf" 2>/dev/null || true
+    fi
+
+    # Create dedicated enable-php snippet in conf_dir (/www/server/nginx/conf)
     log_info "Creating Nginx FastCGI snippet: $snippet_file..."
     cat << EOF > "$snippet_file"
 # BEGIN RS-ISOLATE: ${domain}
@@ -54,11 +59,6 @@ location ~* /(?:uploads|files)/.*\.php$ {
 }
 # END RS-ISOLATE: ${domain}
 EOF
-
-    # If vhost_dir is distinct from conf_dir, symlink to vhost_dir as well
-    if [ -d "$vhost_dir" ] && [ "$vhost_dir" != "$conf_dir" ]; then
-        ln -sf "$snippet_file" "${vhost_dir}/enable-php-84-${domain_clean}.conf" 2>/dev/null || true
-    fi
 
     # Switch include in aaPanel vhost file
     sed_i "s/include enable-php-84\.conf;/include enable-php-84-${domain_clean}\.conf;/g" "$vhost_file"
@@ -87,7 +87,7 @@ restore_nginx_vhost() {
         log_success "Removed snippet $snippet_file"
     fi
 
-    if [ -d "$vhost_dir" ] && [ "$vhost_dir" != "$conf_dir" ]; then
+    if [ "$vhost_dir" != "$conf_dir" ] && [ -f "${vhost_dir}/enable-php-84-${domain_clean}.conf" ]; then
         rm -f "${vhost_dir}/enable-php-84-${domain_clean}.conf" 2>/dev/null || true
     fi
 }
