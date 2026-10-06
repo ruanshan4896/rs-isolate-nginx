@@ -91,6 +91,26 @@ enable_site_cache() {
     ensure_nginx_cache_include
     setup_site_cache_dir "$domain"
 
+    # Ensure PHP-FPM pool open_basedir includes the cache directory
+    local base_fpm_dir
+    base_fpm_dir=$(get_php_fpm_base_dir 2>/dev/null || echo "/www/server/php/84/etc")
+    local pool_file="${base_fpm_dir}/php-fpm.d/${domain_clean}.conf"
+    if [ -f "$pool_file" ]; then
+        if ! grep -Fq "${cache_dir}" "$pool_file"; then
+            sed_i "s|^\(php_admin_value\[open_basedir\]\s*=.*\)|\1:${cache_dir}/|" "$pool_file" 2>/dev/null || true
+        fi
+    fi
+
+    local docroot="/www/wwwroot/${domain}"
+    local user_ini="${docroot}/.user.ini"
+    if [ -f "$user_ini" ]; then
+        if ! grep -Fq "${cache_dir}" "$user_ini" 2>/dev/null; then
+            chattr -i "$user_ini" 2>/dev/null || true
+            sed_i "s|^\(open_basedir=.*\)$|\1:${cache_dir}/|" "$user_ini" 2>/dev/null || true
+            chattr +i "$user_ini" 2>/dev/null || true
+        fi
+    fi
+
     # 1. Define per-site cache zone in RAM
     log_info "Configuring cache zone for $domain in RAM: $cache_dir..."
     cat << EOF > "$zone_conf"

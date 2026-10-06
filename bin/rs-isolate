@@ -189,6 +189,7 @@ cmd_cache() {
                     purge_site_cache "$d" || true
                 fi
             done
+            verify_and_reload_php_fpm || true
             verify_and_reload_nginx || true
         fi
         log_success "Executed cache $action for all websites."
