@@ -5,6 +5,17 @@ get_nginx_vhost_dir() {
     echo "${AAPANEL_NGINX_VHOST_DIR:-/www/server/panel/vhost/nginx}"
 }
 
+get_nginx_conf_dir() {
+    local default_conf="/www/server/nginx/conf"
+    if [ -n "${AAPANEL_NGINX_CONF_DIR:-}" ]; then
+        echo "$AAPANEL_NGINX_CONF_DIR"
+    elif [ -d "$default_conf" ]; then
+        echo "$default_conf"
+    else
+        get_nginx_vhost_dir
+    fi
+}
+
 isolate_nginx_vhost() {
     local domain="$1"
     local user
@@ -13,7 +24,9 @@ isolate_nginx_vhost() {
     local vhost_dir
     vhost_dir=$(get_nginx_vhost_dir)
     local vhost_file="${vhost_dir}/${domain}.conf"
-    local snippet_file="${vhost_dir}/enable-php-84-${domain_clean}.conf"
+    local conf_dir
+    conf_dir=$(get_nginx_conf_dir)
+    local snippet_file="${conf_dir}/enable-php-84-${domain_clean}.conf"
     local socket="/tmp/php-cgi-84-${domain_clean}.sock"
 
     if [ ! -f "$vhost_file" ]; then
@@ -42,6 +55,11 @@ location ~* /(?:uploads|files)/.*\.php$ {
 # END RS-ISOLATE: ${domain}
 EOF
 
+    # If vhost_dir is distinct from conf_dir, symlink to vhost_dir as well
+    if [ -d "$vhost_dir" ] && [ "$vhost_dir" != "$conf_dir" ]; then
+        ln -sf "$snippet_file" "${vhost_dir}/enable-php-84-${domain_clean}.conf" 2>/dev/null || true
+    fi
+
     # Switch include in aaPanel vhost file
     sed_i "s/include enable-php-84\.conf;/include enable-php-84-${domain_clean}\.conf;/g" "$vhost_file"
     log_success "Updated $vhost_file to use dedicated PHP-FPM socket."
@@ -55,7 +73,9 @@ restore_nginx_vhost() {
     local vhost_dir
     vhost_dir=$(get_nginx_vhost_dir)
     local vhost_file="${vhost_dir}/${domain}.conf"
-    local snippet_file="${vhost_dir}/enable-php-84-${domain_clean}.conf"
+    local conf_dir
+    conf_dir=$(get_nginx_conf_dir)
+    local snippet_file="${conf_dir}/enable-php-84-${domain_clean}.conf"
 
     if [ -f "$vhost_file" ]; then
         sed_i "s/include enable-php-84-${domain_clean}\.conf;/include enable-php-84\.conf;/g" "$vhost_file"
@@ -65,6 +85,10 @@ restore_nginx_vhost() {
     if [ -f "$snippet_file" ]; then
         rm -f "$snippet_file"
         log_success "Removed snippet $snippet_file"
+    fi
+
+    if [ -d "$vhost_dir" ] && [ "$vhost_dir" != "$conf_dir" ]; then
+        rm -f "${vhost_dir}/enable-php-84-${domain_clean}.conf" 2>/dev/null || true
     fi
 }
 
