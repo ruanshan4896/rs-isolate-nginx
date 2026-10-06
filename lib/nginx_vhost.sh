@@ -93,6 +93,21 @@ restore_nginx_vhost() {
 }
 
 verify_and_reload_nginx() {
+    local vhost_dir
+    vhost_dir=$(get_nginx_vhost_dir)
+    local conf_dir
+    conf_dir=$(get_nginx_conf_dir)
+
+    # Automatically migrate and clean up any misplaced snippets from vhost_dir
+    if [ -d "$vhost_dir" ] && [ "$vhost_dir" != "$conf_dir" ]; then
+        for old_snip in "$vhost_dir"/enable-php-84-*.conf; do
+            if [ -f "$old_snip" ]; then
+                cp -f "$old_snip" "$conf_dir/" 2>/dev/null || true
+                rm -f "$old_snip" 2>/dev/null || true
+            fi
+        done
+    fi
+
     log_info "Verifying Nginx configuration syntax..."
     if command -v nginx >/dev/null 2>&1; then
         if ! nginx -t >/tmp/nginx_test.log 2>&1; then

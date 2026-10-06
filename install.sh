@@ -27,7 +27,8 @@ if [ -d "/etc/systemd/system" ]; then
     cp "${INSTALL_DIR}/systemd/rs-isolate-sentinel.service" /etc/systemd/system/
     systemctl daemon-reload
     systemctl enable --now rs-isolate-sentinel
-    echo -e "\033[0;32m[SUCCESS] Sentinel background daemon activated and enabled on boot!\033[0m"
+    systemctl restart rs-isolate-sentinel 2>/dev/null || true
+    echo -e "\033[0;32m[SUCCESS] Sentinel background daemon activated and reloaded!\033[0m"
 fi
 
 echo -e "\033[0;32m===========================================================\033[0m"
