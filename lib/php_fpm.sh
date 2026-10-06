@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# lib/php_fpm.sh - Dedicated PHP-FPM 8.4 pool management
+
+get_php_fpm_base_dir() {
+    echo "${PHP_FPM_DIR:-/www/server/php/84/etc}"
+}
+
+create_php_fpm_pool() {
+    local domain="$1"
+    local docroot="${2:-/www/wwwroot/${domain}}"
+    local user
+    user=$(sanitize_domain_to_user "$domain")
+    local domain_clean="${user#iso_}"
+    local base_dir
+    base_dir=$(get_php_fpm_base_dir)
+    local pool_dir="${base_dir}/php-fpm.d"
+    local pool_file="${pool_dir}/${domain_clean}.conf"
+    local socket="/tmp/php-cgi-84-${domain_clean}.sock"
+
+    mkdir -p "$pool_dir" 2>/dev/null || true
+
+    log_info "Configuring dedicated PHP-FPM pool for $domain..."
+    cat << EOF > "$pool_file"
+[${domain}]
+user = ${user}
+group = ${user}
+listen = ${socket}
+listen.owner = www
+listen.group = www
+listen.mode = 0660
+
+pm = ondemand
+pm.max_children = 20
+pm.process_idle_timeout = 60s
+pm.max_requests = 1000
+
+php_admin_value[open_basedir] = ${docroot}/:/tmp/:/proc/
+php_admin_value[upload_tmp_dir] = /tmp
+php_admin_value[session.save_path] = /tmp
+php_admin_value[max_execution_time] = 300
+php_admin_value[memory_limit] = 256M
+php_admin_value[upload_max_filesize] = 128M
+php_admin_value[post_max_size] = 128M
+EOF
+
+    # Remove any stale socket
+    rm -f "${socket}"* 2>/dev/null || true
+    log_success "Created PHP-FPM pool: $pool_file"
+}
+
+remove_php_fpm_pool() {
+    local domain="$1"
+    local user
+    user=$(sanitize_domain_to_user "$domain")
+    local domain_clean="${user#iso_}"
+    local base_dir
+    base_dir=$(get_php_fpm_base_dir)
+    local pool_file="${base_dir}/php-fpm.d/${domain_clean}.conf"
+    local socket="/tmp/php-cgi-84-${domain_clean}.sock"
+
+    if [ -f "$pool_file" ]; then
+        rm -f "$pool_file"
+        rm -f "${socket}"* 2>/dev/null || true
+        log_success "Removed PHP-FPM pool: $pool_file"
+    fi
+}
+
+verify_and_reload_php_fpm() {
+    log_info "Verifying PHP-FPM 8.4 syntax..."
+    local fpm_bin="/www/server/php/84/sbin/php-fpm"
+    if [ -x "$fpm_bin" ]; then
+        if ! "$fpm_bin" -t >/tmp/fpm_test.log 2>&1; then
+            log_error "PHP-FPM syntax test failed! Details in /tmp/fpm_test.log"
+            cat /tmp/fpm_test.log >&2
+            return 1
+        fi
+    fi
+
+    log_info "Reloading PHP-FPM 8.4..."
+    if [ -x "/etc/init.d/php-fpm-84" ]; then
+        /etc/init.d/php-fpm-84 reload >/dev/null 2>&1 || true
+    elif command -v systemctl >/dev/null 2>&1; then
+        systemctl reload php-fpm-84 >/dev/null 2>&1 || true
+    fi
+    log_success "PHP-FPM 8.4 reloaded."
+    return 0
+}
