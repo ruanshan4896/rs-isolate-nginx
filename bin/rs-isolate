@@ -88,6 +88,7 @@ cmd_isolate() {
 
 cmd_restore() {
     local domain="${1:-}"
+    local custom_docroot="${2:-}"
     if [ -z "$domain" ]; then
         log_error "Domain name required. Example: rs-isolate restore example.com"
         exit 1
