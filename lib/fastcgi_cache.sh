@@ -21,15 +21,27 @@ ensure_nginx_cache_include() {
 
     mkdir -p "$cache_d" 2>/dev/null || true
 
-    # Global fastcgi cache parameters
+    # Global fastcgi cache parameters (avoid duplicate fastcgi_cache_key if defined by aaPanel)
     local global_conf="${cache_d}/00-global.conf"
+    local has_existing_key=0
+    if grep -rq "fastcgi_cache_key" /www/server/panel/vhost/nginx/ 2>/dev/null; then
+        has_existing_key=1
+    fi
+
     if [ ! -f "$global_conf" ]; then
         cat << 'GEOF' > "$global_conf"
 # Global FastCGI Cache configuration for rs-isolate
-fastcgi_cache_key "$scheme$request_method$host$request_uri";
 fastcgi_cache_use_stale error timeout invalid_header updating http_500 http_503;
 fastcgi_ignore_headers Cache-Control Expires Set-Cookie;
 GEOF
+        if [ "$has_existing_key" -eq 0 ]; then
+            echo 'fastcgi_cache_key "$scheme$request_method$host$request_uri";' >> "$global_conf"
+        fi
+    else
+        # Remove duplicate key if aaPanel already defined it
+        if [ "$has_existing_key" -eq 1 ]; then
+            sed_i '/fastcgi_cache_key/d' "$global_conf"
+        fi
     fi
 
     # Ensure include directive exists in http block of nginx.conf
