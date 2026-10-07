@@ -111,6 +111,16 @@ enable_site_cache() {
         fi
     fi
 
+    local wp_config="${docroot}/wp-config.php"
+    if [ -f "$wp_config" ]; then
+        if ! grep -Fq "RT_WP_NGINX_HELPER_CACHE_PATH" "$wp_config"; then
+            sed_i "/\/\* That's all/i define('RT_WP_NGINX_HELPER_CACHE_PATH', '${cache_dir}');" "$wp_config" 2>/dev/null || \
+            echo "define('RT_WP_NGINX_HELPER_CACHE_PATH', '${cache_dir}');" >> "$wp_config"
+        else
+            sed_i "s|define(.*'RT_WP_NGINX_HELPER_CACHE_PATH'.*|define('RT_WP_NGINX_HELPER_CACHE_PATH', '${cache_dir}');|g" "$wp_config" 2>/dev/null || true
+        fi
+    fi
+
     # 1. Define per-site cache zone in RAM
     log_info "Configuring cache zone for $domain in RAM: $cache_dir..."
     cat << EOF > "$zone_conf"
