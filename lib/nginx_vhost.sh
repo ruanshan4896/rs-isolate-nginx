@@ -97,6 +97,11 @@ location ~* /(?:uploads|files)/.*\.php$ {
     deny all;
     return 403;
 }
+
+# Allow cache purging via HTTP PURGE request (for Nginx Helper plugin)
+location ~ /purge(/.*) {
+    fastcgi_cache_purge ${zone_name} "\$scheme\$request_method\$host\$1";
+}
 # END RS-ISOLATE: ${domain}
 EOF
 
