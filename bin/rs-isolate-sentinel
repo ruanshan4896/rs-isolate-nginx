@@ -28,6 +28,11 @@ log_sentinel() {
 
 run_monitor() {
     log_sentinel "Starting Sentinel Auto-Isolation Monitor..."
+    
+    # [FIX] Automatically restore FastCGI Cache ACLs on RAM after server reboot
+    log_sentinel "Restoring FastCGI Cache ACLs on /dev/shm for all sites..."
+    "$ISOLATE_CMD" cache enable-all >/dev/null 2>&1 || true
+
     while true; do
         if [ -d "$NGINX_VHOST_DIR" ]; then
             for f in "$NGINX_VHOST_DIR"/*.conf; do
