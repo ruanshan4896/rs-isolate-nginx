@@ -33,6 +33,19 @@ run_monitor() {
     log_sentinel "Restoring FastCGI Cache ACLs on /var/cache/rs-isolate for all sites..."
     "$ISOLATE_CMD" cache enable-all >/dev/null 2>&1 || true
 
+    log_sentinel "Starting FastCGI Cache permission auto-fixer..."
+    # Nginx creates cache subdirectories as 0700 (www only). 
+    # This loop continuously opens them up so isolated PHP can purge them via WordPress.
+    # Security is maintained because the parent domain directory is protected by POSIX ACLs.
+    (
+        while true; do
+            if [ -d "/var/cache/rs-isolate" ]; then
+                chmod -R a+rwx /var/cache/rs-isolate/*/* 2>/dev/null || true
+            fi
+            sleep 2
+        done
+    ) &
+
     while true; do
         if [ -d "$NGINX_VHOST_DIR" ]; then
             for f in "$NGINX_VHOST_DIR"/*.conf; do
