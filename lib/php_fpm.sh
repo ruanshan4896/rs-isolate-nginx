@@ -60,9 +60,9 @@ listen.group = www
 listen.mode = 0660
 
 pm = ondemand
-pm.max_children = 20
-pm.process_idle_timeout = 60s
-pm.max_requests = 1000
+pm.max_children = 5
+pm.process_idle_timeout = 10s
+pm.max_requests = 500
 
 php_admin_value[open_basedir] = ${docroot}/:/tmp/:/proc/:${cache_dir}/
 php_admin_value[upload_tmp_dir] = /tmp
