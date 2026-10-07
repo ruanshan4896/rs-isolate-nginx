@@ -9,7 +9,7 @@ get_nginx_cache_base_dir() {
 
 get_site_cache_path() {
     local domain_clean="$1"
-    echo "${RS_CACHE_ROOT:-/www/server/nginx/cache}/${domain_clean}"
+    echo "${RS_CACHE_ROOT:-/var/cache/rs-isolate}/${domain_clean}"
 }
 
 ensure_nginx_cache_include() {

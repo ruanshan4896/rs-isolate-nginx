@@ -38,7 +38,7 @@ create_php_fpm_pool() {
     ensure_php_fpm_include
 
     log_info "Configuring dedicated PHP-FPM pool for $domain..."
-    local cache_dir="/www/server/nginx/cache/${domain_clean}"
+    local cache_dir="/var/cache/rs-isolate/${domain_clean}"
 
     # Also update .user.ini if present to allow cache directory
     local user_ini="${docroot}/.user.ini"
