@@ -54,7 +54,7 @@ isolate_nginx_vhost() {
     cache_dir=$(get_site_cache_path "$domain_clean")
     cat << EOF > "${cache_d}/${domain_clean}.conf"
 # FastCGI Cache Zone for ${domain}
-fastcgi_cache_path ${cache_dir} levels=1:2 keys_zone=${zone_name}:10m inactive=60m max_size=512m;
+fastcgi_cache_path ${cache_dir} levels=1:2 keys_zone=${zone_name}:10m inactive=60m max_size=64m;
 EOF
 
     # Create dedicated enable-php snippet in conf_dir (/www/server/nginx/conf)

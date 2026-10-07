@@ -9,7 +9,7 @@ get_nginx_cache_base_dir() {
 
 get_site_cache_path() {
     local domain_clean="$1"
-    echo "${RS_CACHE_ROOT:-/dev/shm/nginx-cache}/${domain_clean}"
+    echo "${RS_CACHE_ROOT:-/www/server/nginx/cache}/${domain_clean}"
 }
 
 ensure_nginx_cache_include() {
@@ -115,7 +115,7 @@ enable_site_cache() {
     log_info "Configuring cache zone for $domain in RAM: $cache_dir..."
     cat << EOF > "$zone_conf"
 # FastCGI Cache Zone for ${domain}
-fastcgi_cache_path ${cache_dir} levels=1:2 keys_zone=${zone_name}:10m inactive=60m max_size=512m;
+fastcgi_cache_path ${cache_dir} levels=1:2 keys_zone=${zone_name}:10m inactive=60m max_size=64m;
 EOF
 
     # 2. Update snippet to include cache directives
